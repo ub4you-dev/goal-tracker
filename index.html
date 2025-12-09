@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goal Tracker Pro</title>
+    <script type="module">
+	// expose functions to inline HTML handlers
+	window.addGoal   = addGoal;
+	window.resetForm = resetForm;
+	window.switchTab = switchTab;
+	window.deleteGoal = deleteGoal;
+        // TODO: Replace with your actual Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDMeK7PuTbjCyJqVV8JwfVxID2qyr7Q3pM",
+	    authDomain: "goal-tracker-6fd09.firebaseapp.com",
+  	    databaseURL: "https://goal-tracker-6fd09-default-rtdb.europe-west1.firebasedatabase.app",
+  	    projectId: "goal-tracker-6fd09",
+    	    storageBucket: "goal-tracker-6fd09.firebasestorage.app",
+            messagingSenderId: "545700326622",
+            appId: "1:545700326622:web:137716667e98f10c16e64f"
+        };
+
+        // Firebase imports
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+        import { getDatabase, ref, onValue, set, push, remove } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        // Global variables
+        const categories = ['personal', 'relationship', 'work', 'financial', 'social'];
+        const goalsData = {
+            vision: '',
+            personal: [],
+            relationship: [],
+            work: [],
+            financial: [],
+            social: []
+        };
+
+               
+        const SHARED_ID = "my-main-user";   // choose any string
+
+	function loadData() {
+  	const userRef = ref(db, `goals/${SHARED_ID}`);
+  	onValue(userRef, (snapshot) => {
+    	const data = snapshot.val();
+    	if (data) {
+      	goalsData.vision = data.vision || '';
+      	categories.forEach(cat => {
+        goalsData[cat] = data[cat] || [];
+      	});
+    	}
+    	loadUI();
+  	});
+	}
+
+	function saveData() {
+  	const userRef = ref(db, `goals/${SHARED_ID}`);
+  	set(userRef, goalsData).catch(console.error);
+	}
+       
+       
+        function loadUI() {
+            document.getElementById('visionInput').value = goalsData.vision;
+            categories.forEach(cat => {
+                renderGoals(cat);
+                updateStats(cat);
+            });
+        }
+
+        function switchTab(event, tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function addGoal(cat) {
+            const date = document.getElementById(`${cat}-date`).value;
+            const goal = document.getElementById(`${cat}-goal`).value;
+            const mental = document.getElementById(`${cat}-mental`).value;
+            const physical = document.getElementById(`${cat}-physical`).value;
+            const execution = document.getElementById(`${cat}-execution`).value;
+
+            if (!date || !goal || !mental || !physical || !execution) {
+                alert('Fill all fields');
+                return;
+            }
+
+            const newGoal = {
+                id: Date.now(),
+                date,
+                goal,
+                mental,
+                physical,
+                execution
+            };
+
+            goalsData[cat].push(newGoal);
+            saveData();
+            resetForm(cat);
+            renderGoals(cat);
+            updateStats(cat);
+        }
+
+        function deleteGoal(cat, id) {
+            goalsData[cat] = goalsData[cat].filter(g => g.id !== id);
+            saveData();
+            renderGoals(cat);
+            updateStats(cat);
+        }
+
+        function resetForm(cat) {
+            document.getElementById(`${cat}-date`).value = '';
+            document.getElementById(`${cat}-goal`).value = '';
+            document.getElementById(`${cat}-mental`).value = '';
+            document.getElementById(`${cat}-physical`).value = '';
+            document.getElementById(`${cat}-execution`).value = '';
+        }
+
+        function renderGoals(cat) {
+            const container = document.getElementById(`${cat}-goals`);
+            const goals = goalsData[cat];
+
+            if (goals.length === 0) {
+                container.innerHTML = '<div class="empty-state">No goals yet</div>';
+                return;
+            }
+
+            container.innerHTML = goals.map(g =>
+                `
+                <div class="goal-card">
+                    <div class="goal-card-header">
+                        <span class="goal-date">${new Date(g.date).toLocaleDateString()}</span>
+                        <span class="goal-category-badge">${cat}</span>
+                    </div>
+                    <h3 class="goal-title">${g.goal}</h3>
+                    <div class="goal-action">
+                        <div class="goal-action-label">Mental Action</div>
+                        <div class="goal-action-text">${g.mental}</div>
+                    </div>
+                    <div class="goal-action">
+                        <div class="goal-action-label">Physical Action</div>
+                        <div class="goal-action-text">${g.physical}</div>
+                    </div>
+                    <div class="goal-action">
+                        <div class="goal-action-label">Execution</div>
+                        <div class="goal-action-text">${g.execution}</div>
+                    </div>
+                    <div class="goal-card-footer">
+                        <button class="btn btn-danger btn-sm" onclick="deleteGoal('${cat}', ${g.id})">Delete</button>
+                    </div>
+                </div>
+                `
+            ).join('');
+        }
+
+        function updateStats(cat) {
+            const count = goalsData[cat].length;
+            document.getElementById(`${cat}-stats`).innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${count}</div>
+                    <div class="stat-label">Total Goals</div>
+                </div>
+            `;
+        }
+
+        // Vision statement handler
+        document.getElementById('visionInput').addEventListener('change', (e) => {
+            goalsData.vision = e.target.value;
+            saveData();
+        });
+	// expose for inline handlers
+	window.addGoal = addGoal;
+	window.resetForm = resetForm;
+	window.switchTab = switchTab;
+	window.deleteGoal = deleteGoal;
+
+        // Add event listeners for all categories
+        categories.forEach(cat => {
+            document.getElementById(`${cat}-date`).addEventListener('change', () => {});
+            document.getElementById(`${cat}-goal`).addEventListener('input', () => {});
+        });
+    </script>
+    <style>
+        :root {
+            --color-primary: #2180d8;
+            --color-primary-hover: #1d74c4;
+            --color-primary-active: #1a68b0;
+            --color-secondary: rgba(94, 82, 64, 0.12);
+            --color-background: #fcfcf9;
+            --color-surface: #ffffff;
+            --color-text: #134252;
+            --color-text-secondary: #628c71;
+            --color-border: rgba(94, 82, 64, 0.2);
+            --color-error: #c01530;
+            --font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+            --space-8: 8px;
+            --space-12: 12px;
+            --space-16: 16px;
+            --space-24: 24px;
+            --space-32: 32px;
+            --radius-base: 8px;
+            --radius-lg: 12px;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: var(--space-16);
+            font-family: var(--font-family);
+            background: var(--color-background);
+            color: var(--color-text);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: var(--space-32);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0 0 var(--space-8) 0;
+            font-size: 32px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: var(--space-12) var(--space-24);
+            border: none;
+            border-radius: var(--radius-base);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--color-secondary);
+            color: var(--color-text);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(94, 82, 64, 0.2);
+        }
+
+        .btn-danger {
+            background: #f5f5f5;
+            color: var(--color-error);
+            border: 1px solid var(--color-error);
+        }
+
+        .btn-danger:hover {
+            background: rgba(192, 21, 47, 0.1);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .vision-section {
+            background: linear-gradient(135deg, #2180d8 0%, #1d74c4 100%);
+            color: white;
+            padding: var(--space-24);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-32);
+            box-shadow: var(--shadow-md);
+        }
+
+        .vision-section h2 {
+            margin: 0 0 var(--space-12) 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .vision-section textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: var(--space-12);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: var(--radius-base);
+            font-family: var(--font-family);
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--color-text);
+            resize: vertical;
+        }
+
+        .tabs {
+            display: flex;
+            gap: var(--space-12);
+            margin-bottom: var(--space-24);
+            border-bottom: 2px solid var(--color-border);
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            padding: var(--space-12) var(--space-16);
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--color-text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: var(--color-primary);
+        }
+
+        .tab-btn.active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .goal-form {
+            background: var(--color-surface);
+            padding: var(--space-24);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-border);
+            margin-bottom: var(--space-24);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-16);
+            margin-bottom: var(--space-16);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: var(--space-8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"], input[type="date"], textarea {
+            padding: var(--space-12);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-base);
+            font-family: var(--font-family);
+            font-size: 14px;
+            color: var(--color-text);
+            background: var(--color-surface);
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(33, 128, 141, 0.2);
+        }
+
+        textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: var(--space-12);
+            justify-content: flex-end;
+        }
+
+        .goals-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-16);
+        }
+
+        .goal-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-16);
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s;
+        }
+
+        .goal-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--color-primary);
+        }
+
+        .goal-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: var(--space-12);
+        }
+
+        .goal-date {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+
+        .goal-category-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: var(--color-secondary);
+            color: var(--color-primary);
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .goal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-text);
+            margin: 0 0 var(--space-12) 0;
+        }
+
+        .goal-action {
+            margin-bottom: var(--space-12);
+            padding-bottom: var(--space-12);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .goal-action:last-of-type {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .goal-action-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .goal-action-text {
+            font-size: 13px;
+            color: var(--color-text);
+            line-height: 1.4;
+        }
+
+        .goal-card-footer {
+            display: flex;
+            gap: var(--space-8);
+            justify-content: flex-end;
+            margin-top: var(--space-12);
+            padding-top: var(--space-12);
+            border-top: 1px solid var(--color-border);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: var(--space-32) var(--space-16);
+            color: var(--color-text-secondary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-16);
+            margin-bottom: var(--space-24);
+        }
+
+        .stat-card {
+            background: var(--color-surface);
+            padding: var(--space-16);
+            border-radius: var(--radius-base);
+            border: 1px solid var(--color-border);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            margin-top: var(--space-8);
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: var(--space-12);
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            header {
+                flex-direction: column;
+                gap: var(--space-16);
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .goals-list {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Goal Tracker Pro</h1>
+                <p class="subtitle">Track your short-term goals</p>
+            </div>
+        </header>
+
+        <div class="vision-section">
+            <h2>Vision Statement</h2>
+            <textarea id="visionInput" placeholder="Write your vision statement..."></textarea>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(event, 'personal')">Personal</button>
+            <button class="tab-btn" onclick="switchTab(event, 'relationship')">Relationship</button>
+            <button class="tab-btn" onclick="switchTab(event, 'work')">Work</button>
+            <button class="tab-btn" onclick="switchTab(event, 'financial')">Financial</button>
+            <button class="tab-btn" onclick="switchTab(event, 'social')">Social</button>
+        </div>
+
+        <div id="personal" class="tab-content active">
+            <div class="stats-grid" id="personal-stats"></div>
+            <div class="goal-form">
+                <h3 style="margin: 0 0 16px 0;">Add Personal Goal</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="personal-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <input type="text" id="personal-goal" placeholder="What to achieve?">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mental Action</label>
+                        <textarea id="personal-mental" placeholder="Mental work needed?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Physical Action</label>
+                        <textarea id="personal-physical" placeholder="Concrete steps?"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Time of Execution</label>
+                        <input type="text" id="personal-execution" placeholder="Daily 7 PM">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="resetForm('personal')">Reset</button>
+                    <button class="btn btn-primary" onclick="addGoal('personal')">Add Goal</button>
+                </div>
+            </div>
+            <div id="personal-goals" class="goals-list"></div>
+        </div>
+
+        <div id="relationship" class="tab-content">
+            <div class="stats-grid" id="relationship-stats"></div>
+            <div class="goal-form">
+                <h3 style="margin: 0 0 16px 0;">Add Relationship Goal</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="relationship-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <input type="text" id="relationship-goal" placeholder="What to achieve?">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mental Action</label>
+                        <textarea id="relationship-mental" placeholder="Mental work needed?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Physical Action</label>
+                        <textarea id="relationship-physical" placeholder="Concrete steps?"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Time of Execution</label>
+                        <input type="text" id="relationship-execution" placeholder="Daily 7 PM">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="resetForm('relationship')">Reset</button>
+                    <button class="btn btn-primary" onclick="addGoal('relationship')">Add Goal</button>
+                </div>
+            </div>
+            <div id="relationship-goals" class="goals-list"></div>
+        </div>
+
+        <div id="work" class="tab-content">
+            <div class="stats-grid" id="work-stats"></div>
+            <div class="goal-form">
+                <h3 style="margin: 0 0 16px 0;">Add Work Goal</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="work-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <input type="text" id="work-goal" placeholder="What to achieve?">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mental Action</label>
+                        <textarea id="work-mental" placeholder="Mental work needed?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Physical Action</label>
+                        <textarea id="work-physical" placeholder="Concrete steps?"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Time of Execution</label>
+                        <input type="text" id="work-execution" placeholder="Daily 7 PM">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="resetForm('work')">Reset</button>
+                    <button class="btn btn-primary" onclick="addGoal('work')">Add Goal</button>
+                </div>
+            </div>
+            <div id="work-goals" class="goals-list"></div>
+        </div>
+
+        <div id="financial" class="tab-content">
+            <div class="stats-grid" id="financial-stats"></div>
+            <div class="goal-form">
+                <h3 style="margin: 0 0 16px 0;">Add Financial Goal</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="financial-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <input type="text" id="financial-goal" placeholder="What to achieve?">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mental Action</label>
+                        <textarea id="financial-mental" placeholder="Mental work needed?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Physical Action</label>
+                        <textarea id="financial-physical" placeholder="Concrete steps?"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Time of Execution</label>
+                        <input type="text" id="financial-execution" placeholder="Daily 7 PM">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="resetForm('financial')">Reset</button>
+                    <button class="btn btn-primary" onclick="addGoal('financial')">Add Goal</button>
+                </div>
+            </div>
+            <div id="financial-goals" class="goals-list"></div>
+        </div>
+
+        <div id="social" class="tab-content">
+            <div class="stats-grid" id="social-stats"></div>
+            <div class="goal-form">
+                <h3 style="margin: 0 0 16px 0;">Add Social Goal</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="social-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <input type="text" id="social-goal" placeholder="What to achieve?">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mental Action</label>
+                        <textarea id="social-mental" placeholder="Mental work needed?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Physical Action</label>
+                        <textarea id="social-physical" placeholder="Concrete steps?"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Time of Execution</label>
+                        <input type="text" id="social-execution" placeholder="Daily 7 PM">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="resetForm('social')">Reset</button>
+                    <button class="btn btn-primary" onclick="addGoal('social')">Add Goal</button>
+                </div>
+            </div>
+            <div id="social-goals" class="goals-list"></div>
+        </div>
+    </div>
+</body>
+</html>
