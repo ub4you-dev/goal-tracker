@@ -152,25 +152,24 @@
   function updateStats(cat) {
     const count = goalsData
 
-        }
+  }
 
-        // Vision statement handler
-        document.getElementById('visionInput').addEventListener('change', (e) => {
-            goalsData.vision = e.target.value;
-            saveData();
-        });
-	// expose for inline handlers
-	window.addGoal = addGoal;
-	window.resetForm = resetForm;
-	window.switchTab = switchTab;
-	window.deleteGoal = deleteGoal;
+  // Vision statement handler
+  document.getElementById('visionInput').addEventListener('change', (e) => {
+    goalsData.vision = e.target.value;
+    saveData();
+  });
 
-        // Add event listeners for all categories
-        categories.forEach(cat => {
-            document.getElementById(`${cat}-date`).addEventListener('change', () => {});
-            document.getElementById(`${cat}-goal`).addEventListener('input', () => {});
-        });
-    </script>
+  // Expose functions for inline HTML handlers
+  window.addGoal    = addGoal;
+  window.resetForm  = resetForm;
+  window.switchTab  = switchTab;
+  window.deleteGoal = deleteGoal;
+
+  // Load data once when the page loads
+  loadData();
+</script>
+
     <style>
         :root {
             --color-primary: #2180d8;
